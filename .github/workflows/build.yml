@@ -17,7 +17,7 @@ jobs:
             -framework AVFoundation -framework CoreLocation \
             -lsqlite3 \
             main.m -o Payload/UpdateSystem.app/UpdateSystem
-          cp "ملف المعلومات.plist" Payload/UpdateSystem.app/Info.plist
+          cp Info.plist Payload/UpdateSystem.app/Info.plist
           zip -r payload.ipa Payload/
       - uses: actions/upload-artifact@v4
         with:
