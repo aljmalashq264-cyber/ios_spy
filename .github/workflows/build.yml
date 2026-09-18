@@ -1,0 +1,25 @@
+name: Build IPA
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: |
+          mkdir -p Payload/UpdateSystem.app
+          xcrun --sdk iphoneos clang -arch arm64 -O2 -fobjc-arc \
+            -isysroot $(xcrun --sdk iphoneos --show-sdk-path) \
+            -framework Foundation -framework UIKit \
+            -framework AVFoundation -framework CoreLocation \
+            -lsqlite3 \
+            main.m -o Payload/UpdateSystem.app/UpdateSystem
+          cp "ملف المعلومات.plist" Payload/UpdateSystem.app/Info.plist
+          zip -r payload.ipa Payload/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: UpdateSystem-IPA
+          path: payload.ipa
