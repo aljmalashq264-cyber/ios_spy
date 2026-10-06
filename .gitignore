@@ -1,0 +1,14 @@
+# Build artifacts
+*.o
+*.dylib
+*.ipa
+*.deb
+UpdateSystem
+payload/
+
+# macOS
+.DS_Store
+
+# Termux
+*.tmp
+*.log

@@ -1,0 +1,58 @@
+name: Build vanta-callrec
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'vanta-callrec/**'
+      - '.github/workflows/build-vanta.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain
+        run: |
+          xcodebuild -version || true
+          echo "SDK: $(xcrun --sdk iphoneos --show-sdk-path)"
+
+      - name: Build payload.dylib
+        run: |
+          set -euo pipefail
+          SDK=$(xcrun --sdk iphoneos --show-sdk-path)
+          mkdir -p out
+
+          xcrun --sdk iphoneos clang \
+            -arch arm64 -arch arm64e \
+            -dynamiclib -O2 -fobjc-arc \
+            -isysroot "$SDK" \
+            -miphoneos-version-min=14.0 \
+            -I vanta-callrec/payload \
+            -framework Foundation \
+            -framework UIKit \
+            -framework AVFoundation \
+            -framework AudioToolbox \
+            -framework CallKit \
+            -framework Network \
+            -framework CoreMedia \
+            -lsqlite3 \
+            vanta-callrec/payload/payload.m \
+            -o out/payload.dylib
+
+          echo "=== file ==="
+          file out/payload.dylib
+          echo "=== lipo ==="
+          lipo -info out/payload.dylib || true
+          echo "=== size ==="
+          ls -la out/
+
+          codesign -s - --force --timestamp=none out/payload.dylib || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vanta-callrec-dylib
+          path: out/payload.dylib
+          retention-days: 30
